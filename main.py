@@ -6,7 +6,12 @@ import sys
 
 # Configuración de conexiones (ejemplo)
 CONEXIONES = {
-    'local': {
+    'local_office': {
+        'server': 'DESKTOP-7CB49UL',
+        'database': 'AGROBAC_DEV',  # Nombre de la base de datos local
+        'trusted_connection': True  # Usa autenticación Windows
+    },
+    'local_home': {
         'server': 'BARAJAS',
         'database': 'AGROBAC_DEV',  # Nombre de la base de datos local
         'trusted_connection': True  # Usa autenticación Windows
@@ -77,7 +82,7 @@ def mostrar_progreso(actual, total):
 
 # Manejo de interrupción
 try:
-    ENTORNO = 'local'  # Cambia según el entorno deseado (local o desarrollo)
+    ENTORNO = 'local_office'  # Cambia según el entorno deseado (local o desarrollo)
     connection_string = obtener_cadena_conexion(ENTORNO)
 
     with pyodbc.connect(connection_string) as conn:
