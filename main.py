@@ -44,16 +44,22 @@ def obtener_cadena_conexion(entorno):
     else:
         return f"DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={CONEXIONES[entorno]['server']};DATABASE={CONEXIONES[entorno]['database']};UID={CONEXIONES[entorno]['username']};PWD={CONEXIONES[entorno]['password']};"
 
+# Función para deshabilitar llaves foráneas
+def deshabilitar_llaves_foraneas(cursor):
+    cursor.execute("EXEC sp_MSforeachtable 'ALTER TABLE ? NOCHECK CONSTRAINT ALL'")
+    cursor.commit()
+    logging.info("Se han deshabilitado todas las llaves foráneas.")
+
+# Función para habilitar llaves foráneas
+def habilitar_llaves_foraneas(cursor):
+    cursor.execute("EXEC sp_MSforeachtable 'ALTER TABLE ? CHECK CONSTRAINT ALL'")
+    cursor.commit()
+    logging.info("Se han habilitado todas las llaves foráneas.")
+
 # Función para ejecutar una línea SQL con validación
 def ejecutar_linea_sql(cursor, linea_sql):
     global contador_exitosos, contador_fk_errors, contador_otros_errores
     try:
-        # Verificar si la línea contiene un INSERT en la tabla [Dom].[Cuenta] con NumeroCuenta '903' o '1.2.10'
-        if "INSERT INTO [Dom].[Cuenta]" in linea_sql and "VALUES" in linea_sql:
-            if "'903'" in linea_sql or "'1.2.10'" in linea_sql:
-                logging.info(f"Omitiendo el INSERT ya que NumeroCuenta '903' o '1.2.10' está siendo insertado.")
-                return  # Omitir el INSERT
-
         # Ejecutar la línea SQL normalmente, pero sin imprimirla en consola
         cursor.execute(linea_sql)
         cursor.commit()  # Confirmar esta línea si se ejecuta correctamente
@@ -88,8 +94,11 @@ try:
     with pyodbc.connect(connection_string) as conn:
         cursor = conn.cursor()
 
+        # Deshabilitar llaves foráneas
+        deshabilitar_llaves_foraneas(cursor)
+
         # Leer todas las líneas del archivo al inicio para saber el total
-        with open('ADC_PROD_PARAM_1_20240830.sql', 'r', encoding='utf-8') as file:
+        with open('ADC_PROD_PARAM_3_20240830.sql', 'r', encoding='utf-8') as file:
             lineas = file.readlines()
         total_lineas = len(lineas)
 
@@ -105,7 +114,7 @@ try:
                 logging.info(f"Ignorando línea 'GO': {linea.strip()}")
                 continue
 
-            # Ejecutar el resto de las líneas con validación para NumeroCuenta '903' y '1.2.10'
+            # Ejecutar el resto de las líneas
             if linea.strip():  # Evitar ejecutar líneas vacías
                 ejecutar_linea_sql(cursor, linea)
 
@@ -113,14 +122,18 @@ try:
         conn.commit()
         logging.info("Todas las sentencias SQL han sido ejecutadas y confirmadas.")
 
+        # Habilitar llaves foráneas nuevamente
+        habilitar_llaves_foraneas(cursor)
+
 except pyodbc.DatabaseError as db_err:
-    # Si ocurre un error, revertir la transacción global
+    # Si ocurre un error, revertir la transacción global y habilitar llaves foráneas
     logging.error("Se detuvo la ejecución debido a un error de base de datos.")
     logging.error(f"Detalles del error: {db_err}")
     conn.rollback()  # Revertir toda la transacción si hay un error
     logging.info("Se ha revertido toda la transacción debido al error.")
 
 except KeyboardInterrupt:
+    # Si el usuario interrumpe, revertir la transacción y habilitar llaves foráneas
     logging.warning("Ejecución interrumpida por el usuario.")
     conn.rollback()  # Revertir la transacción si el usuario interrumpe
     logging.info("Se ha revertido toda la transacción debido a la interrupción.")
